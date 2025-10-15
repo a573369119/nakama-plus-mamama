@@ -16,38 +16,143 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
-  nakama:
-    image: registry.heroiclabs.com/heroiclabs/nakama:3.30.0
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.0
+    command: >
+      etcd --name etcd1 --data-dir /etcd-data
+      --listen-client-urls http://0.0.0.0:2379
+      --advertise-client-urls http://etcd:2379
+      --listen-peer-urls http://0.0.0.0:2380
+      --initial-advertise-peer-urls http://etcd:2380
+      --initial-cluster etcd1=http://etcd:2380
+      --initial-cluster-token nakama-cluster
+      --initial-cluster-state new
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd-data:/etcd-data
+
+  nakama-node1:
+    image: nakama-plus:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     entrypoint:
       - "/bin/sh"
       - "-ecx"
       - >
-          /nakama/nakama migrate up --database.address root@cockroachdb:26257 &&
-          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level DEBUG --session.token_expiry_sec 7200 --metrics.prometheus_port 9100
+          /nakama/nakama-plus migrate up --database.address root@cockroachdb:26257 &&
+          exec /nakama/nakama-plus 
+          --name nakama-node1 
+          --database.address root@cockroachdb:26257 
+          --logger.level DEBUG 
+          --session.token_expiry_sec 7200 
+          --metrics.prometheus_port 9100 
+          --runtime.path /nakama/data/modules 
+          --cluster.enabled true 
+          --cluster.name nakama-cluster 
+          --cluster.etcd.endpoints http://etcd:2379 
+          --cluster.broadcast.host nakama-node1 
+          --cluster.broadcast.port 7351
     restart: "no"
     links:
       - "cockroachdb:db"
+      - "etcd:etcd"
     depends_on:
       cockroachdb:
         condition: service_healthy
-      prometheus:
+      etcd:
         condition: service_started
     volumes:
-      - ./:/nakama/data
-    expose:
-      - "7349"
-      - "7350"
-      - "7351"
-      - "9100"
+      - nakama-data-node1:/nakama/data
     ports:
       - "7349:7349"
       - "7350:7350"
       - "7351:7351"
     healthcheck:
-      test: ["CMD", "/nakama/nakama", "healthcheck"]
+      test: ["CMD", "/nakama/nakama-plus", "healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 5
+  nakama-node2:
+    image: nakama-plus:latest
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+          /nakama/nakama-plus migrate up --database.address root@cockroachdb:26257 &&
+          exec /nakama/nakama-plus 
+          --name nakama-node2 
+          --database.address root@cockroachdb:26257 
+          --logger.level DEBUG 
+          --session.token_expiry_sec 7200 
+          --metrics.prometheus_port 9101 
+          --runtime.path /nakama/data/modules 
+          --cluster.enabled true 
+          --cluster.name nakama-cluster 
+          --cluster.etcd.endpoints http://etcd:2379 
+          --cluster.broadcast.host nakama-node2 
+          --cluster.broadcast.port 7352
+    restart: "no"
+    links:
+      - "cockroachdb:db"
+      - "etcd:etcd"
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+      etcd:
+        condition: service_started
+    volumes:
+      - nakama-data-node2:/nakama/data
+    ports:
+      - "7352:7350"
+      - "7353:7351"
+    healthcheck:
+      test: ["CMD", "/nakama/nakama-plus", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nakama-node3:
+    image: nakama-plus:latest
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+          /nakama/nakama-plus migrate up --database.address root@cockroachdb:26257 &&
+          exec /nakama/nakama-plus 
+          --name nakama-node3 
+          --database.address root@cockroachdb:26257 
+          --logger.level DEBUG 
+          --session.token_expiry_sec 7200 
+          --metrics.prometheus_port 9102 
+          --runtime.path /nakama/data/modules 
+          --cluster.enabled true 
+          --cluster.name nakama-cluster 
+          --cluster.etcd.endpoints http://etcd:2379 
+          --cluster.broadcast.host nakama-node3 
+          --cluster.broadcast.port 7354
+    restart: "no"
+    links:
+      - "cockroachdb:db"
+      - "etcd:etcd"
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+      etcd:
+        condition: service_started
+    volumes:
+      - nakama-data-node3:/nakama/data
+    ports:
+      - "7354:7350"
+      - "7355:7351"
+    healthcheck:
+      test: ["CMD", "/nakama/nakama-plus", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   prometheus:
     image: prom/prometheus
     entrypoint: /bin/sh -c
@@ -64,13 +169,28 @@ services:
           - targets: ['localhost:9090']
 
         - job_name: nakama
-          metrics_path: /
           static_configs:
-          - targets: ['nakama:9100']
+          - targets: ['nakama-node1:9100', 'nakama-node2:9101', 'nakama-node3:9102']
       EON
       prometheus --config.file=./prometheus.yml
       EOF'
     ports:
       - '9090:9090'
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+    depends_on:
+      - nakama-node1
+      - nakama-node2
+      - nakama-node3
+
 volumes:
   data:
+  etcd-data:
+  nakama-data-node1:
+  nakama-data-node2:
+  nakama-data-node3:

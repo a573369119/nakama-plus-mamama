@@ -1,0 +1,101 @@
+# Nakama Plus 集群配置
+name: "nakama-cluster"
+data_dir: "/app/data"
+
+# 集群配置
+cluster:
+  # 启用集群功能
+  enable: true
+  
+  # 节点名称
+  name: "nakama1"
+  
+  # Gossip协议绑定地址
+  gossip_bind_addr: "0.0.0.0:7350"
+  
+  # 集群通信端口
+  port: 7351
+  
+  # 节点发现配置
+  discovery:
+    # 使用静态节点发现
+    static:
+      servers:
+        - "nakama1:7351"
+    
+    # 重试间隔
+    retry_interval: "10s"
+    
+    # 重试次数
+    retry_max: 3
+
+# 数据库配置
+database:
+  address: "root@cockroachdb:26257"
+  database: "nakama"
+
+# 会话配置
+session:
+  # 会话令牌过期时间（秒）
+  token_expiry_sec: 7200
+
+# 日志配置
+logger:
+  # 日志级别
+  level: "DEBUG"
+  
+  # 日志格式
+  format: "json"
+
+# 运行时配置
+runtime:
+  # 模块路径
+  path: "/app/data/modules"
+  
+  # 环境变量
+  env: []
+
+# 指标配置
+metrics:
+  # Prometheus端口
+  prometheus_port: 9100
+  
+  # 报告频率
+  reporting_freq: "60s"
+
+# 匹配配置
+match:
+  # 输入队列大小
+  input_queue_size: 128
+  
+  # 调用队列大小
+  call_queue_size: 128
+
+# 跟踪配置
+trace:
+  # 是否启用跟踪
+  enable: false
+  
+  # 采样率
+  system_sample_rate: 0.01
+  
+  # Web采样率
+  web_sample_rate: 0.01
+
+# 控制台配置
+console:
+  # 控制台端口
+  port: 7351
+  
+  # 用户名
+  username: "admin"
+  
+  # 密码
+  password: "password"
+
+# 社交配置
+social:
+  # Steam配置
+  steam:
+    publisher_key: ""
+    app_id: 0
