@@ -1,284 +1,190 @@
-# Nakama Plus 构建部署工具
+![Nakama](.github/logo.png?raw=true "Nakama logo")
+======
 
-Nakama Plus 是基于官方 Nakama 游戏服务器的扩展版本，增加了集群功能、微服务架构和增强的管理能力。
+[![GitHub release](https://img.shields.io/github/v/release/doublemo/nakama-plus.svg)](https://heroiclabs.com/docs/nakama/getting-started/install/)
+[![Forum](https://img.shields.io/badge/forum-online-success.svg)](https://forum.heroiclabs.com)
+[![License](https://img.shields.io/github/license/doublemo/nakama-plus.svg)](https://github.com/heroiclabs/nakama/blob/master/LICENSE)
 
-## 项目概述
+> Distributed server for social and realtime games and apps.
 
-Nakama Plus 在官方 Nakama 的基础上增加了以下核心功能：
+> This project adds cluster and microservice support to Nakama. In daily work, you might want to deploy Nakama in a cluster where data across all nodes is synchronized, or add sub-services around Nakama to distribute server load. We hope this project proves helpful to you.
 
-- **集群支持**：多节点部署，自动节点发现和负载均衡
-- **微服务架构**：支持服务间通信和分布式处理
-- **增强监控**：集成了 Prometheus 指标收集
-- **扩展配置**：支持更复杂的运行时配置
+## Features
 
-## 快速开始
+* **Users** - Register/login new users via social networks, email, or device ID.
+* **Storage** - Store user records, settings, and other objects in collections.
+* **Social** - Users can connect with friends, and join groups. Builtin social graph to see how users can be connected.
+* **Chat** - 1-on-1, group, and global chat between users. Persist messages for chat history.
+* **Multiplayer** - Realtime, or turn-based active and passive multiplayer.
+* **Leaderboards** - Dynamic, seasonal, get top members, or members around a user. Have as many as you need.
+* **Tournaments** - Invite players to compete together over prizes. Link many together to create leagues.
+* **Parties** - Add team play to a game. Users can form a party and communicate with party members.
+* **Purchase Validation** - Validate in-app purchases and subscriptions.
+* **In-App Notifications** - Send messages and notifications to connected client sockets.
+* **Runtime code** - Extend the server with custom logic written in Lua, TypeScript/JavaScript, or native Go code.
+* **Cluster Support** - Supports Nakama for distributed deployment, with data synchronized to all nodes in the cluster via gossip.
+* **Microservices** - Enables Nakama to function as a heavy-duty gateway, with sub-features split and deployed as microservices. All services within the cluster support automatic service discovery.
+* **Matchmaker**, **dashboard**, **metrics**, and [more](https://heroiclabs.com/docs).
 
-### 前置要求
+Build scalable games and apps with a production ready server used by ambitious game studios and app developers [all around the world](https://heroiclabs.com/customers/). Have a look at the [documentation](https://heroiclabs.com/docs) and join the [developer community](https://forum.heroiclabs.com) for more info.
 
-- Docker 和 Docker Compose
-- Git
-- Bash 环境（Linux/macOS/WSL）
+## Getting Started
 
-### 一键部署
+The server is simple to setup and run for local development and can be deployed to any cloud provider. See the [deployment notes](#deployment) for recommendations on how to deploy the project for production. Nakama server requires CockroachDB or another Postgres wire-compatible server as it's database.
 
-```bash
-# 克隆项目（如果尚未克隆）
-git clone <repository-url>
-cd nakama-plus
+### Docker
 
-# 执行完整部署
-./deploy-cluster.sh all
+<a href="https://heroiclabs.com/docs/install-docker-quickstart/"><img src="https://upload.wikimedia.org/wikipedia/commons/7/79/Docker_%28container_engine%29_logo.png" width="170"></a>
+
+The fastest way to run the server and the database is with Docker. Setup Docker and start the daemon.
+
+1. Set up a [docker-compose file](https://heroiclabs.com/docs/nakama/getting-started/install/docker/#running-nakama) and place it in a folder for your project.
+
+2. Run `docker-compose -f ./docker-compose.yml up` to download container images and run the servers.
+
+For more detailed instructions have a look at our [Docker quickstart](https://heroiclabs.com/docs/nakama/getting-started/install/docker) guide.
+
+Nakama Docker images are maintained on [Docker Hub](https://hub.docker.com/r/heroiclabs/nakama/tags) and [prerelease](https://hub.docker.com/r/heroiclabs/nakama-prerelease/tags) images are occasionally published for cutting edge features of the server.
+
+### Binaries
+
+You can run the servers with native binaries for your platform.
+
+1. Download the server from our [releases](https://github.com/heroiclabs/nakama/releases) page and the [database](https://www.cockroachlabs.com/docs/stable/install-cockroachdb.html).
+
+2. Follow the database [instructions](https://www.cockroachlabs.com/docs/stable/start-a-local-cluster.html#before-you-begin) to start it.
+
+3. Run a migration which will setup or upgrade the database schema:
+
+   ```shell
+   nakama migrate up --database.address "root@127.0.0.1:26257"
+   ```
+
+4. Start Nakama and connect to the database:
+
+   ```shell
+   nakama --database.address "root@127.0.0.1:26257"
+   ```
+
+When connected you'll see server output which describes all settings the server uses for [configuration](https://heroiclabs.com/docs/nakama/getting-started/configuration).
+
+> {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Node","name":"nakama","version":"2.0.0+7e18b09","runtime":"go1.10.1","cpu":4} <br/>
+> {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Database connections","dsns":["root@127.0.0.1:26257"]} <br/>
+> ...
+
+## Usage
+
+Nakama supports a variety of protocols optimized for various gameplay or app use cases. For request/response it can use GRPC or the HTTP1.1+JSON fallback (REST). For realtime communication you can use WebSockets or rUDP.
+
+For example with the REST API to authenticate a user account with a device identifier.
+
+```shell
+curl "127.0.0.1:7350/v2/account/authenticate/device?create=true" \
+  --user "defaultkey:" \
+  --data '{"id": "someuniqueidentifier"}'
 ```
 
-### 分步部署
+Response:
 
-1. **构建镜像**
-```bash
-./deploy-cluster.sh build
+> { <br>
+>     "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1MjQ5OTU2NDksInVpZCI6Ijk5Y2Q1YzUyLWE5ODgtNGI2NC04YThhLTVmMTM5YTg4MTgxMiIsInVzbiI6InhBb1RxTUVSdFgifQ.-3_rXNYx3Q4jKuS7RkxeMWBzMNAm0vl93QxzRI8p_IY" <br>
+> }
+
+There's a number of official [client libraries](https://github.com/heroiclabs) available on GitHub with [documentation](https://heroiclabs.com/docs). The current platform/language support includes: .NET (in C#), Unity engine, JavaScript, Java (with Android), Unreal engine, Godot, Defold, and Swift (with iOS). If you'd like to contribute a client or request one let us know.
+
+## Nakama Console
+
+The server provides a web UI which teams can use to inspect various data stored through the server APIs, view lightweight service metrics, manage player data, update storage objects, restrict access to production with permission profiles, and gain visibility into realtime features like active multiplayer matches. There is no separate installation required as it is embedded as part of the single server binary.
+
+You can navigate to it on your browser on [http://127.0.0.1:7351](http://127.0.0.1:7351).
+
+<img src=".github/accounts.jpg?raw=true" title="Account listing" width="1024" align="center">
+<img src=".github/status.jpg?raw=true" title="Status view" width="125" align="left">
+<img src=".github/storage.jpg?raw=true" title="Storage record view" width="125" align="left">
+<img src=".github/match.jpg?raw=true" title="Running matches view" width="125" align="left">
+<img src=".github/users.jpg?raw=true" title="Console users view" width="125" align="left">
+<img src=".github/modules.jpg?raw=true" title="Loaded modules view" width="125">
+
+## Deployment
+
+Nakama can be deployed to any cloud provider such as Google Cloud, Azure, AWS, Digital Ocean, Heroku, or your own private cloud. You should setup and provision separate nodes for Nakama and CockroachDB.
+
+The recommended minimum production infrastructure for CockroachDB is outlined in [these docs](https://www.cockroachlabs.com/docs/stable/recommended-production-settings.html#basic-hardware-recommendations) and Nakama can be run on instance types as small as "g1-small" on Google Cloud although we recommend a minimum of "n1-standard-1" in production. The specific hardware requirements will depend on what features of the server are used. Reach out to us for help and advice on what servers to run.
+
+### Heroic Cloud
+
+You can support development, new features, and maintainance of the server by using the Heroic Labs' [Heroic Cloud](https://heroiclabs.com/heroic-cloud/) for deployment. This service handles the uptime, replication, backups, logs, data upgrades, and all other tasks involved with production server environments.
+
+Have a look at our [Heroic Cloud](https://heroiclabs.com/heroic-cloud/) service for more details.
+
+## Contribute
+
+The development roadmap is managed as GitHub issues and pull requests are welcome. If you're interested to add a feature which is not mentioned on the issue tracker please open one to create a discussion or drop in and discuss it in the [community forum](https://forum.heroiclabs.com).
+
+### Simple Builds
+
+All dependencies required for a build are vendored as part of the Go project. We recommend a modern release of the Go toolchain and do not store the codebase in the old GOPATH.
+
+1. Download the source tree.
+
+   ```shell
+   git clone "https://github.com/heroiclabs/nakama" nakama
+   cd nakama
+   ```
+
+2. Build the project from source.
+
+   ```shell
+   go build -trimpath -mod=vendor
+   ./nakama --version
+   ```
+
+### Full Source Builds
+
+The codebase uses Protocol Buffers, GRPC, GRPC-Gateway, and the OpenAPI spec as part of the project. These dependencies are generated as sources and committed to the repository to simplify builds for contributors.
+
+To build the codebase and generate all sources follow these steps.
+
+1. Install the toolchain.
+
+   ```shell
+   go install \
+       "google.golang.org/protobuf/cmd/protoc-gen-go" \
+       "google.golang.org/grpc/cmd/protoc-gen-go-grpc" \
+       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway" \
+       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
+   ```
+
+2. If you've made changes to the embedded Console.
+
+    ```shell
+    cd console/ui
+    ng serve
+    ```
+
+3. Re-generate the protocol buffers, gateway code and console UI.
+
+   ```shell
+   env PATH="$HOME/go/bin:$PATH" go generate -x ./...
+   ```
+
+4. Build the codebase.
+
+   ```shell
+   go build -trimpath -mod=vendor
+   ```
+
+### Testing
+
+In order to run all the unit and integration tests run:
+
+```shell
+docker-compose -f ./docker-compose-tests.yml up --build --abort-on-container-exit; docker-compose -f ./docker-compose-tests.yml down -v
 ```
 
-2. **启动集群**
-```bash
-./deploy-cluster.sh cluster
-```
+This will create an isolated environment with Nakama and database instances, run
+all the tests, and drop the environment afterwards.
 
-3. **验证部署**
-```bash
-./test-cluster.sh full
-```
+### License
 
-## 文件结构
-
-```
-nakama-plus/
-├── Dockerfile                    # 自定义构建镜像
-├── docker-compose.yml           # 单节点部署配置
-├── docker-compose-cluster.yml   # 多节点集群配置
-├── cluster-config.yml           # 集群配置文件
-├── build-nakama-plus.sh         # 构建脚本
-├── deploy-cluster.sh            # 部署管理脚本
-├── test-cluster.sh              # 功能测试脚本
-└── README.md                    # 本文档
-```
-
-## 部署模式
-
-### 单节点模式
-
-适用于开发和测试环境：
-
-```bash
-./deploy-cluster.sh start
-```
-
-访问地址：
-- Nakama HTTP API: http://localhost:7350
-- Nakama GRPC: localhost:7349
-- CockroachDB UI: http://localhost:8080
-
-### 集群模式（推荐）
-
-适用于生产环境，支持高可用：
-
-```bash
-./deploy-cluster.sh cluster
-```
-
-集群包含3个节点：
-- nakama1: 主节点，负责数据库迁移
-- nakama2: 工作节点
-- nakama3: 工作节点
-
-## 配置说明
-
-### 集群配置
-
-编辑 `cluster-config.yml` 文件调整集群参数：
-
-```yaml
-cluster:
-  enable: true
-  name: "nakama-cluster"
-  gossip_bind_addr: "0.0.0.0:7350"
-  port: 7351
-  discovery:
-    static:
-      servers:
-        - "nakama1:7351"
-        - "nakama2:7351"
-        - "nakama3:7351"
-```
-
-### 环境变量
-
-可以通过环境变量覆盖配置：
-
-```bash
-export NAKAMA_CLUSTER_ENABLE=true
-export NAKAMA_DATABASE_ADDRESS="root@cockroachdb:26257"
-```
-
-## 监控和日志
-
-### 监控面板
-
-- **Prometheus**: http://localhost:9090
-- **Grafana**（可选）: 可配置为数据源
-
-### 日志查看
-
-查看特定服务日志：
-
-```bash
-# 查看 nakama1 日志
-./deploy-cluster.sh logs nakama1
-
-# 查看数据库日志
-./deploy-cluster.sh logs cockroachdb
-
-# 查看所有日志（实时）
-./deploy-cluster.sh logs
-```
-
-## 故障排除
-
-### 常见问题
-
-1. **端口冲突**
-   - 确保 7349、7350、7351、8080、9090 端口未被占用
-
-2. **构建失败**
-   - 检查网络连接，确保能访问 Docker Hub
-   - 验证 Docker 守护进程运行状态
-
-3. **集群节点无法发现**
-   - 检查防火墙设置
-   - 验证 `cluster-config.yml` 中的节点地址配置
-
-### 健康检查
-
-```bash
-# 快速健康检查
-./test-cluster.sh quick
-
-# 完整功能测试
-./test-cluster.sh full
-
-# 检查服务状态
-./deploy-cluster.sh status
-```
-
-## 管理命令
-
-### 服务管理
-
-```bash
-# 启动服务
-./deploy-cluster.sh start|cluster
-
-# 停止服务
-./deploy-cluster.sh stop
-
-# 重启服务
-./deploy-cluster.sh stop && ./deploy-cluster.sh cluster
-
-# 清理所有资源
-./deploy-cluster.sh clean
-```
-
-### 数据备份
-
-```bash
-# 备份数据库
-docker exec -it nakama-plus_cockroachdb_1 cockroach dump nakama > backup.sql
-
-# 恢复数据库
-docker exec -i nakama-plus_cockroachdb_1 cockroach sql -e "CREATE DATABASE IF NOT EXISTS nakama;"
-docker exec -i nakama-plus_cockroachdb_1 cockroach sql -d nakama < backup.sql
-```
-
-## 扩展开发
-
-### 自定义模块
-
-在 `data/modules/` 目录中添加 Lua 模块：
-
-```lua
--- data/modules/example.lua
-local nk = require("nakama")
-
-local function my_rpc_function(context, payload)
-    nk.logger_info("自定义 RPC 函数被调用")
-    return { success = true, message = "Hello from custom module!" }
-end
-
-nk.register_rpc(my_rpc_function, "my_custom_function")
-```
-
-### API 扩展
-
-通过 GRPC 或 HTTP 端点扩展功能：
-
-```go
-// 参考 internal/ 目录中的示例代码
-```
-
-## 性能优化
-
-### 数据库优化
-
-```sql
--- 在 CockroachDB 中创建索引
-CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
-CREATE INDEX IF NOT EXISTS idx_matches_create_time ON matches (create_time);
-```
-
-### 内存配置
-
-调整 Docker 内存限制：
-
-```yaml
-# 在 docker-compose 文件中添加
-deploy:
-  resources:
-    limits:
-      memory: 2G
-    reservations:
-      memory: 1G
-```
-
-## 安全建议
-
-1. **修改默认密码**
-   - 控制台默认密码：admin/password
-   - 生产环境务必修改
-
-2. **网络隔离**
-   - 使用 Docker 网络隔离服务
-   - 配置防火墙规则
-
-3. **TLS/SSL**
-   - 生产环境启用 HTTPS
-   - 配置证书和密钥
-
-## 支持与贡献
-
-### 问题报告
-
-遇到问题时请提供：
-
-1. 部署环境信息
-2. 错误日志内容
-3. 复现步骤
-
-### 开发贡献
-
-欢迎提交 Pull Request 和功能建议。
-
-## 许可证
-
-本项目基于 Nakama 开源项目，遵循相应的开源协议。
-
----
-
-**注意**: 生产环境部署前请务必进行充分测试和安全性评估。
+This project is licensed under the [Apache-2 License](https://github.com/heroiclabs/nakama/blob/master/LICENSE).
